@@ -51,7 +51,12 @@ public class SnapChecker : MonoBehaviour
 
             if (difference < snapDistance)
             {
-                // They're close enough AND correctly lined up - GLUE THEM!
+                // They're close enough AND correctly lined up!
+                // Before gluing, SNAP the dropped piece to the EXACT perfect spot
+                // (no more gap - pieces click together seamlessly)
+                SnapIntoExactPosition(myTag, otherTag);
+
+                // Now glue them permanently
                 GlueTogether(droppedPiece, otherTag.gameObject);
             }
         }
@@ -70,6 +75,36 @@ public class SnapChecker : MonoBehaviour
         bool sameColNextRow = (aCol == bCol) && (Mathf.Abs(aRow - bRow) == 1);
 
         return sameRowNextCol || sameColNextRow;
+    }
+
+    // Moves the dropped piece (and its whole glued family, if it has one)
+    // so it lines up PERFECTLY with its neighbor - no gap at all!
+    private static void SnapIntoExactPosition(PuzzlePiece myTag, PuzzlePiece otherTag)
+    {
+        // Step 1: Figure out where "myTag" SHOULD be in the world,
+        // based on the neighbor's actual position + the correct gap between them
+        Vector3 correctGap = myTag.correctPosition - otherTag.correctPosition;
+        Vector3 exactTargetPosition = otherTag.transform.position + correctGap;
+
+        // Step 2: How far off are we from that perfect spot?
+        Vector3 moveNeeded = exactTargetPosition - myTag.transform.position;
+
+        // Step 3: Move the TOP-LEVEL object (the whole group if it's glued to others,
+        // or just itself if it's alone) by that amount.
+        // This keeps every piece in the family perfectly aligned together.
+        Transform topLevelObject = GetTopLevelTransform(myTag.transform);
+        topLevelObject.position += moveNeeded;
+    }
+
+    // Finds the "topmost" parent of a piece - either its BlockGroup (family), or itself if alone
+    private static Transform GetTopLevelTransform(Transform pieceTransform)
+    {
+        BlockGroup group = pieceTransform.GetComponentInParent<BlockGroup>();
+        if (group != null)
+        {
+            return group.transform;
+        }
+        return pieceTransform;
     }
 
     // This is where the GLUE happens - merges two pieces (or groups) into one

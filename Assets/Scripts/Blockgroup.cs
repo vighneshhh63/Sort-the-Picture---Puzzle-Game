@@ -11,8 +11,9 @@ public class BlockGroup : MonoBehaviour
     public void AddPiece(GameObject piece)
     {
         // Make this piece a "child" of the group in the Hierarchy
-        // so moving the group automatically moves the piece too
-        piece.transform.parent = this.transform;
+        // so moving the group automatically moves the piece too.
+        // "true" means: keep its exact current world position, don't jump anywhere!
+        piece.transform.SetParent(this.transform, true);
 
         if (!pieces.Contains(piece))
         {
