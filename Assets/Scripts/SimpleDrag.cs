@@ -49,7 +49,12 @@ public class SimpleDrag : MonoBehaviour
         // Step 4: Did the player let go of the mouse button?
         if (Input.GetMouseButtonUp(0))
         {
-            isBeingDragged = false;
+            if (isBeingDragged)
+            {
+                isBeingDragged = false;
+                // Just dropped it - check if it can glue to a neighbor!
+                SnapChecker.CheckForSnap(this.gameObject);
+            }
         }
     }
 }
