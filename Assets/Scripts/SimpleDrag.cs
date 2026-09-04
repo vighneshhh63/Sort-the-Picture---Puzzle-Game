@@ -10,8 +10,22 @@ public class SimpleDrag : MonoBehaviour
     // This runs EVERY SINGLE FRAME (like, 60 times per second!)
     void Update()
     {
+        // Safety check: if there's no camera tagged MainCamera, stop here
+        if (Camera.main == null) return;
+
+        // Safety check: sometimes mouse position briefly reports weird/infinite values
+        // (like when clicking outside the Game window) - skip this frame if so
+        Vector3 rawMouse = Input.mousePosition;
+        if (float.IsInfinity(rawMouse.x) || float.IsInfinity(rawMouse.y) ||
+            float.IsNaN(rawMouse.x) || float.IsNaN(rawMouse.y))
+        {
+            return;
+        }
+
         // Step 1: Where is the mouse right now, in the game world?
-        Vector3 mouseWorldPosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector3 screenPos = rawMouse;
+        screenPos.z = Mathf.Abs(Camera.main.transform.position.z); // distance from camera to the 2D plane
+        Vector3 mouseWorldPosition = Camera.main.ScreenToWorldPoint(screenPos);
         mouseWorldPosition.z = 0; // keep it flat, like a 2D picture
 
         // Step 2: Did the player just click the mouse button?
