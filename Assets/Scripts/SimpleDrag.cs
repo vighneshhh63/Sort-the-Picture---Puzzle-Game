@@ -6,6 +6,7 @@ public class SimpleDrag : MonoBehaviour
 {
     private bool isBeingDragged = false; // Is someone holding me right now?
     private Vector3 offset;              // Remembers WHERE on the block you clicked
+    private Vector3 pickupPosition;      // Remembers WHERE this piece was before you picked it up
 
     // This runs EVERY SINGLE FRAME (like, 60 times per second!)
     void Update()
@@ -37,6 +38,7 @@ public class SimpleDrag : MonoBehaviour
             {
                 isBeingDragged = true;
                 offset = transform.position - mouseWorldPosition;
+                pickupPosition = transform.position; // remember our starting spot, in case we need to bounce back
             }
         }
 
@@ -53,9 +55,33 @@ public class SimpleDrag : MonoBehaviour
             if (isBeingDragged)
             {
                 isBeingDragged = false;
-                // Just dropped it - check if it can glue to a neighbor!
-                SnapChecker.CheckForSnap(this.gameObject);
+                HandleDrop();
             }
+        }
+    }
+
+    // Decides what happens when the piece is let go: glue, swap, or bounce back
+    private void HandleDrop()
+    {
+        // First, check if we landed correctly next to our real neighbor
+        bool snapped = SnapChecker.CheckForSnap(this.gameObject);
+        if (snapped) return; // glued! nothing more to do, SnapChecker already handled the smooth glide
+
+        // Not a correct match - check if we dropped ON TOP of another piece
+        GameObject occupant = SnapChecker.FindNearbyOccupant(this.gameObject);
+
+        if (occupant != null)
+        {
+            // SWAP: the other piece takes OUR old spot, and we glide into THEIRS
+            Vector3 occupantOriginalPosition = occupant.transform.position;
+
+            CoroutineRunner.Instance.SmoothMoveTo(occupant.transform, pickupPosition, 0.15f);
+            CoroutineRunner.Instance.SmoothMoveTo(this.transform, occupantOriginalPosition, 0.15f);
+        }
+        else
+        {
+            // Nothing there and no match - just glide back to where we picked it up
+            CoroutineRunner.Instance.SmoothMoveTo(this.transform, pickupPosition, 0.15f);
         }
     }
 

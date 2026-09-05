@@ -8,23 +8,26 @@ public class SnapChecker : MonoBehaviour
     // How close two pieces need to be (in world units) to count as "touching correctly"
     public static float snapDistance = 0.6f;
 
-    // Call this whenever a piece OR a whole group is DROPPED after dragging
-    public static void CheckForSnap(GameObject droppedObject)
+    // Call this whenever a piece OR a whole group is DROPPED after dragging.
+    // Returns TRUE if it successfully glued to something, FALSE if not.
+    public static bool CheckForSnap(GameObject droppedObject)
     {
-        // Find every PuzzlePiece "name tag" inside the dropped thing
-        // (if it's a single piece, this finds just itself;
-        //  if it's a whole glued group, this finds ALL pieces inside it)
         PuzzlePiece[] myPieces = droppedObject.GetComponentsInChildren<PuzzlePiece>();
+        bool didSnapHappen = false;
 
         foreach (PuzzlePiece myTag in myPieces)
         {
-            CheckSinglePieceForSnap(myTag);
+            bool snapped = CheckSinglePieceForSnap(myTag);
+            if (snapped) didSnapHappen = true;
         }
+
+        return didSnapHappen;
     }
 
-    private static void CheckSinglePieceForSnap(PuzzlePiece myTag)
+    private static bool CheckSinglePieceForSnap(PuzzlePiece myTag)
     {
         GameObject droppedPiece = myTag.gameObject;
+        bool foundSnap = false;
 
         // Find EVERY other puzzle piece currently in the scene
         PuzzlePiece[] allPieces = Object.FindObjectsOfType<PuzzlePiece>();
@@ -58,8 +61,48 @@ public class SnapChecker : MonoBehaviour
 
                 // Now glue them permanently
                 GlueTogether(droppedPiece, otherTag.gameObject);
+
+                foundSnap = true;
             }
         }
+
+        return foundSnap;
+    }
+
+    // Looks for ANOTHER piece sitting very close to where you just dropped
+    // this one - used for SWAPPING two pieces' places when they don't glue.
+    // Returns null if nothing is nearby.
+    public static GameObject FindNearbyOccupant(GameObject droppedObject, float radius = 0.5f)
+    {
+        PuzzlePiece[] myPieces = droppedObject.GetComponentsInChildren<PuzzlePiece>();
+        if (myPieces.Length == 0) return null;
+
+        // For simplicity, swapping only works for single (ungrouped) pieces
+        if (myPieces.Length > 1) return null;
+
+        GameObject myPiece = myPieces[0].gameObject;
+        BlockGroup myGroup = myPiece.GetComponentInParent<BlockGroup>();
+
+        PuzzlePiece[] allPieces = Object.FindObjectsOfType<PuzzlePiece>();
+        GameObject closest = null;
+        float closestDistance = radius;
+
+        foreach (PuzzlePiece otherTag in allPieces)
+        {
+            if (otherTag.gameObject == myPiece) continue;
+
+            BlockGroup otherGroup = otherTag.gameObject.GetComponentInParent<BlockGroup>();
+            if (myGroup != null && myGroup == otherGroup) continue; // skip my own family
+
+            float dist = Vector3.Distance(droppedObject.transform.position, otherTag.transform.position);
+            if (dist < closestDistance)
+            {
+                closestDistance = dist;
+                closest = GetTopLevelTransform(otherTag.transform).gameObject;
+            }
+        }
+
+        return closest;
     }
 
     // Checks if two pieces are allowed to be neighbors based on their grid position
@@ -80,7 +123,7 @@ public class SnapChecker : MonoBehaviour
     }
 
     // Moves the dropped piece (and its whole glued family, if it has one)
-    // so it lines up PERFECTLY with its neighbor - no gap at all!
+    // so it lines up PERFECTLY with its neighbor - smoothly gliding, no gap!
     private static void SnapIntoExactPosition(PuzzlePiece myTag, PuzzlePiece otherTag)
     {
         // Step 1: Figure out where "myTag" SHOULD be in the world,
@@ -91,11 +134,14 @@ public class SnapChecker : MonoBehaviour
         // Step 2: How far off are we from that perfect spot?
         Vector3 moveNeeded = exactTargetPosition - myTag.transform.position;
 
-        // Step 3: Move the TOP-LEVEL object (the whole group if it's glued to others,
-        // or just itself if it's alone) by that amount.
-        // This keeps every piece in the family perfectly aligned together.
+        // Step 3: Find the TOP-LEVEL object (the whole group if it's glued to others,
+        // or just itself if it's alone) - this is what we'll smoothly glide
         Transform topLevelObject = GetTopLevelTransform(myTag.transform);
-        topLevelObject.position += moveNeeded;
+        Vector3 finalDestination = topLevelObject.position + moveNeeded;
+
+        // Step 4: Glide smoothly to that spot instead of teleporting instantly
+        float glideTime = 0.15f; // quick but visible - feels satisfying, not sluggish
+        CoroutineRunner.Instance.SmoothMoveTo(topLevelObject, finalDestination, glideTime);
     }
 
     // Finds the "topmost" parent of a piece - either its BlockGroup (family), or itself if alone

@@ -11,6 +11,7 @@ public class PuzzleGridGenerator : EditorWindow
     public int rows = 4;            // how many pieces down
     public float blockSpacing = 1.1f; // gap between blocks in the grid
     public bool shufflePieces = true; // mix them up so it's a real puzzle!
+    public GameObject frameReference; // your own frame object - puzzle will fit inside it
 
     // This adds a menu item at the top of Unity: "Tools > Puzzle Grid Generator"
     [MenuItem("Tools/Puzzle Grid Generator")]
@@ -29,6 +30,7 @@ public class PuzzleGridGenerator : EditorWindow
         rows = EditorGUILayout.IntField("Rows", rows);
         blockSpacing = EditorGUILayout.FloatField("Block Spacing", blockSpacing);
         shufflePieces = EditorGUILayout.Toggle("Shuffle Pieces?", shufflePieces);
+        frameReference = (GameObject)EditorGUILayout.ObjectField("Frame Object", frameReference, typeof(GameObject), true);
 
         GUILayout.Space(10);
 
@@ -166,11 +168,13 @@ public class PuzzleGridGenerator : EditorWindow
 
         Debug.Log("Puzzle grid generated with " + blockIndex + " blocks! Check your Hierarchy.");
 
-        // Automatically add the "fit to any screen" brain so you never
+        // Automatically add the "fit to frame" brain so you never
         // have to manually drag it on again for future puzzles!
-        if (puzzleParent.GetComponent<ResponsivePuzzleFitter>() == null)
+        ResponsivePuzzleFitter fitter = puzzleParent.GetComponent<ResponsivePuzzleFitter>();
+        if (fitter == null)
         {
-            puzzleParent.AddComponent<ResponsivePuzzleFitter>();
+            fitter = puzzleParent.AddComponent<ResponsivePuzzleFitter>();
         }
+        fitter.frameReference = frameReference; // connect your chosen frame automatically
     }
 }

@@ -5,6 +5,7 @@ public class GroupDrag : MonoBehaviour
 {
     private bool isBeingDragged = false;
     private Vector3 offset;
+    private Vector3 pickupPosition; // remember where this group started, in case we need to bounce back
 
     void Update()
     {
@@ -30,6 +31,7 @@ public class GroupDrag : MonoBehaviour
             {
                 isBeingDragged = true;
                 offset = transform.position - mouseWorldPosition;
+                pickupPosition = transform.position;
             }
         }
 
@@ -45,7 +47,13 @@ public class GroupDrag : MonoBehaviour
             {
                 isBeingDragged = false;
                 // When we let go of a group, check if it can snap to any other piece/group too!
-                SnapChecker.CheckForSnap(this.gameObject);
+                bool snapped = SnapChecker.CheckForSnap(this.gameObject);
+
+                if (!snapped)
+                {
+                    // Didn't match anything - glide the whole group back to where we picked it up
+                    CoroutineRunner.Instance.SmoothMoveTo(this.transform, pickupPosition, 0.15f);
+                }
             }
         }
     }

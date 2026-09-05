@@ -1,2 +1,14 @@
 fileFormatVersion: 2
 guid: 47914109fd3f8f84c98b9a129e5c962d
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - m_ViewDataDictionary: {instanceID: 0}
+  - puzzleImage: {fileID: 2800000, guid: 52e100992a6ea2946a6bddcf56228141, type: 3}
+  - frameReference: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
