@@ -100,6 +100,7 @@ public class PuzzleGridGenerator : EditorWindow
                 // Step 6.6: Give it a "name tag" remembering where it truly belongs
                 PuzzlePiece piece = block.AddComponent<PuzzlePiece>();
                 piece.pieceIndex = blockIndex;
+                piece.gridColumns = columns; // remember how wide THIS puzzle is
 
                 // Step 7: Figure out its CORRECT home position in the finished picture
                 // (we flip Y because image rows go top-to-bottom, but Unity's Y goes bottom-to-top)
@@ -118,13 +119,48 @@ public class PuzzleGridGenerator : EditorWindow
         }
 
         // Step 8: SHUFFLE! Give every block a random messy starting spot instead
+        // but ONLY inside the area the camera can actually see (our "play frame")
         if (shufflePieces)
         {
-            foreach (GameObject block in allBlocks)
+            // Step 8a: Figure out how big the camera's view is, in world units
+            Camera cam = Camera.main;
+            if (cam == null)
             {
-                float randomX = Random.Range(-4f, 4f);
-                float randomY = Random.Range(-4f, 4f);
-                block.transform.position = new Vector3(randomX, randomY, 0);
+                // fall back to finding any camera in the scene if MainCamera isn't tagged
+                cam = Object.FindObjectOfType<Camera>();
+            }
+
+            if (cam != null)
+            {
+                float camHeight = cam.orthographicSize * 2f;       // full visible height
+                float camWidth = camHeight * cam.aspect;           // full visible width
+
+                // Step 8b: Leave a little safety padding so pieces don't spawn
+                // right at the very edge (half a block width, plus a bit extra)
+                float paddingX = camWidth * 0.1f;
+                float paddingY = camHeight * 0.1f;
+
+                float minX = cam.transform.position.x - (camWidth / 2f) + paddingX;
+                float maxX = cam.transform.position.x + (camWidth / 2f) - paddingX;
+                float minY = cam.transform.position.y - (camHeight / 2f) + paddingY;
+                float maxY = cam.transform.position.y + (camHeight / 2f) - paddingY;
+
+                foreach (GameObject block in allBlocks)
+                {
+                    float randomX = Random.Range(minX, maxX);
+                    float randomY = Random.Range(minY, maxY);
+                    block.transform.position = new Vector3(randomX, randomY, 0);
+                }
+            }
+            else
+            {
+                Debug.LogWarning("No camera found in scene - couldn't calculate safe shuffle area. Using default range instead.");
+                foreach (GameObject block in allBlocks)
+                {
+                    float randomX = Random.Range(-4f, 4f);
+                    float randomY = Random.Range(-4f, 4f);
+                    block.transform.position = new Vector3(randomX, randomY, 0);
+                }
             }
         }
 

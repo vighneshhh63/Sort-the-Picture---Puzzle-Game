@@ -63,8 +63,10 @@ public class SnapChecker : MonoBehaviour
     }
 
     // Checks if two pieces are allowed to be neighbors based on their grid position
-    private static bool AreCorrectNeighbors(PuzzlePiece a, PuzzlePiece b, int columns = 4)
+    private static bool AreCorrectNeighbors(PuzzlePiece a, PuzzlePiece b)
     {
+        int columns = a.gridColumns; // use the REAL width of this puzzle (4, 5, 6...)
+
         int aRow = a.pieceIndex / columns;
         int aCol = a.pieceIndex % columns;
         int bRow = b.pieceIndex / columns;
