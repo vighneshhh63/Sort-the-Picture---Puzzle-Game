@@ -35,7 +35,8 @@ public class GroupDrag : MonoBehaviour
 
         if (isBeingDragged)
         {
-            transform.position = mouseWorldPosition + offset;
+            Vector3 targetPosition = mouseWorldPosition + offset;
+            transform.position = ClampToFrame(targetPosition);
         }
 
         if (Input.GetMouseButtonUp(0))
@@ -47,5 +48,20 @@ public class GroupDrag : MonoBehaviour
                 SnapChecker.CheckForSnap(this.gameObject);
             }
         }
+    }
+
+    // Keeps a position from going outside the puzzle frame's boundaries
+    private Vector3 ClampToFrame(Vector3 position)
+    {
+        if (!ResponsivePuzzleFitter.FrameIsReady) return position;
+
+        float halfWidth = ResponsivePuzzleFitter.FrameWidth / 2f;
+        float halfHeight = ResponsivePuzzleFitter.FrameHeight / 2f;
+        Vector3 center = ResponsivePuzzleFitter.FrameCenter;
+
+        float clampedX = Mathf.Clamp(position.x, center.x - halfWidth, center.x + halfWidth);
+        float clampedY = Mathf.Clamp(position.y, center.y - halfHeight, center.y + halfHeight);
+
+        return new Vector3(clampedX, clampedY, position.z);
     }
 }

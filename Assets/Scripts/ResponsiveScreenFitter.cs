@@ -5,10 +5,24 @@ using System.Linq;
 // This script runs ON THE ACTUAL DEVICE (phone, tablet, browser) when the game starts.
 // It looks at how big the screen REALLY is, then shrinks/grows and repositions
 // the whole puzzle so it always fits perfectly - no matter the screen shape.
+// It ALSO draws a "frame" (empty outline box) showing exactly where the
+// finished picture will be built, sized correctly for any grid (4x4, 5x5, 6x6...).
 public class ResponsivePuzzleFitter : MonoBehaviour
 {
     [Tooltip("How much empty space to leave around the puzzle (0.1 = 10% padding)")]
     public float paddingPercent = 0.1f;
+
+    [Tooltip("Color of the frame outline showing where the picture will be built")]
+    public Color frameColor = new Color(1f, 1f, 1f, 0.4f); // soft transparent white
+
+    private GameObject frameObject;
+
+    // These are shared/public so our drag scripts can check them too,
+    // to make sure pieces never get dragged outside the frame
+    public static Vector3 FrameCenter;
+    public static float FrameWidth;
+    public static float FrameHeight;
+    public static bool FrameIsReady = false;
 
     void Start()
     {
@@ -74,22 +88,81 @@ public class ResponsivePuzzleFitter : MonoBehaviour
             piece.transform.localScale = Vector3.one * finalScale;
         }
 
-        // Step 6: NOW shuffle pieces randomly, safely inside the real screen bounds
-        ShuffleWithinScreen(allPieces, cam, usableWidth, usableHeight);
+        // Step 6: Draw the "frame" FIRST - an empty outline showing exactly where
+        // the finished picture belongs, sized to match this puzzle's grid.
+        // We do this BEFORE shuffling so we know the frame's exact position/size.
+        float finalFrameWidth = puzzleWidth * finalScale;
+        float finalFrameHeight = puzzleHeight * finalScale;
+        CreateOrUpdateFrame(cam.transform.position, finalFrameWidth, finalFrameHeight);
 
-        // Step 7: Also scale how "close" pieces need to be to snap together,
+        // Step 7: NOW shuffle pieces - but ONLY inside the frame's own bounds,
+        // never outside it, no matter what screen size we're on
+        ShuffleWithinFrame(allPieces, cam.transform.position, finalFrameWidth, finalFrameHeight);
+
+        // Step 8: Also scale how "close" pieces need to be to snap together,
         // so bigger/smaller puzzles feel equally easy to connect
         SnapChecker.snapDistance = 0.6f * finalScale;
 
         Debug.Log("Puzzle fitted to screen with scale: " + finalScale);
     }
 
-    void ShuffleWithinScreen(PuzzlePiece[] allPieces, Camera cam, float usableWidth, float usableHeight)
+    // Creates (or repositions/resizes if it already exists) the frame outline
+    void CreateOrUpdateFrame(Vector3 centerPosition, float width, float height)
     {
-        float minX = cam.transform.position.x - (usableWidth / 2f);
-        float maxX = cam.transform.position.x + (usableWidth / 2f);
-        float minY = cam.transform.position.y - (usableHeight / 2f);
-        float maxY = cam.transform.position.y + (usableHeight / 2f);
+        if (frameObject == null)
+        {
+            frameObject = new GameObject("PuzzleFrame");
+            SpriteRenderer sr = frameObject.AddComponent<SpriteRenderer>();
+
+            // Use Unity's simple built-in white square texture as our frame shape
+            // pixelsPerUnit matches the texture size so this sprite is exactly
+            // 1x1 world unit - that makes scaling it to any width/height precise
+            sr.sprite = Sprite.Create(
+                Texture2D.whiteTexture,
+                new Rect(0, 0, Texture2D.whiteTexture.width, Texture2D.whiteTexture.height),
+                new Vector2(0.5f, 0.5f),
+                Texture2D.whiteTexture.width
+            );
+            sr.color = frameColor;
+
+            // Make sure the frame draws BEHIND all the puzzle pieces
+            sr.sortingOrder = -1;
+        }
+
+        frameObject.transform.position = new Vector3(centerPosition.x, centerPosition.y, 0.1f); // slightly behind pieces
+        frameObject.transform.localScale = new Vector3(width, height, 1f);
+
+        // Remember these bounds so drag scripts can clamp pieces to stay inside
+        FrameCenter = centerPosition;
+        FrameWidth = width;
+        FrameHeight = height;
+        FrameIsReady = true;
+    }
+
+    // Scatters every piece to a random SAFE spot, but STRICTLY inside the frame
+    // (never outside it, so the picture never spawns off the target area)
+    void ShuffleWithinFrame(PuzzlePiece[] allPieces, Vector3 frameCenter, float frameWidth, float frameHeight)
+    {
+        // Guess how big one puzzle piece is, so we don't let its edge poke outside the frame
+        float pieceHalfSize = 0.5f;
+        if (allPieces.Length > 0)
+        {
+            SpriteRenderer sr = allPieces[0].GetComponent<SpriteRenderer>();
+            if (sr != null)
+            {
+                pieceHalfSize = Mathf.Max(sr.bounds.extents.x, sr.bounds.extents.y);
+            }
+        }
+
+        float minX = frameCenter.x - (frameWidth / 2f) + pieceHalfSize;
+        float maxX = frameCenter.x + (frameWidth / 2f) - pieceHalfSize;
+        float minY = frameCenter.y - (frameHeight / 2f) + pieceHalfSize;
+        float maxY = frameCenter.y + (frameHeight / 2f) - pieceHalfSize;
+
+        // Safety check: if the frame is too small for even one piece to fit
+        // with padding, just shuffle around the exact center instead of crashing
+        if (minX > maxX) { minX = maxX = frameCenter.x; }
+        if (minY > maxY) { minY = maxY = frameCenter.y; }
 
         foreach (PuzzlePiece piece in allPieces)
         {
