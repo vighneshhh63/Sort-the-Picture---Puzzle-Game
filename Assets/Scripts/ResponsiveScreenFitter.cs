@@ -12,11 +12,6 @@ public class ResponsivePuzzleFitter : MonoBehaviour
     [Tooltip("How much empty space to leave around the puzzle (0.1 = 10% padding)")]
     public float paddingPercent = 0.1f;
 
-    [Tooltip("Color of the frame outline showing where the picture will be built")]
-    public Color frameColor = new Color(1f, 1f, 1f, 0.4f); // soft transparent white
-
-    private GameObject frameObject;
-
     // These are shared/public so our drag scripts can check them too,
     // to make sure pieces never get dragged outside the frame
     public static Vector3 FrameCenter;
@@ -84,20 +79,23 @@ public class ResponsivePuzzleFitter : MonoBehaviour
 
             piece.correctPosition = newCorrectPosition;
 
-            // Also scale the piece's visual size so it matches the new spacing
-            piece.transform.localScale = Vector3.one * finalScale;
+            // Also scale the piece's visual size so it matches the new spacing.
+            // We shrink it slightly (95%) so pieces have a tiny gap between them
+            // and don't visually overlap their neighbors when shuffled apart.
+            piece.transform.localScale = Vector3.one * finalScale * 0.95f;
         }
 
-        // Step 6: Draw the "frame" FIRST - an empty outline showing exactly where
-        // the finished picture belongs, sized to match this puzzle's grid.
-        // We do this BEFORE shuffling so we know the frame's exact position/size.
-        float finalFrameWidth = puzzleWidth * finalScale;
-        float finalFrameHeight = puzzleHeight * finalScale;
-        CreateOrUpdateFrame(cam.transform.position, finalFrameWidth, finalFrameHeight);
+        // Step 6: Remember the puzzle's play area bounds (invisible) so drag
+        // scripts can still keep pieces from being dragged way off-screen.
+        // We do NOT draw a visible frame here - you're placing your own!
+        FrameCenter = cam.transform.position;
+        FrameWidth = puzzleWidth * finalScale;
+        FrameHeight = puzzleHeight * finalScale;
+        FrameIsReady = true;
 
-        // Step 7: NOW shuffle pieces - but ONLY inside the frame's own bounds,
-        // never outside it, no matter what screen size we're on
-        ShuffleWithinFrame(allPieces, cam.transform.position, finalFrameWidth, finalFrameHeight);
+        // Step 7: Shuffle pieces into their own unique grid slots (no overlap),
+        // strictly inside that same play area
+        ShuffleWithinFrame(allPieces, FrameCenter, FrameWidth, FrameHeight);
 
         // Step 8: Also scale how "close" pieces need to be to snap together,
         // so bigger/smaller puzzles feel equally easy to connect
@@ -106,69 +104,34 @@ public class ResponsivePuzzleFitter : MonoBehaviour
         Debug.Log("Puzzle fitted to screen with scale: " + finalScale);
     }
 
-    // Creates (or repositions/resizes if it already exists) the frame outline
-    void CreateOrUpdateFrame(Vector3 centerPosition, float width, float height)
-    {
-        if (frameObject == null)
-        {
-            frameObject = new GameObject("PuzzleFrame");
-            SpriteRenderer sr = frameObject.AddComponent<SpriteRenderer>();
-
-            // Use Unity's simple built-in white square texture as our frame shape
-            // pixelsPerUnit matches the texture size so this sprite is exactly
-            // 1x1 world unit - that makes scaling it to any width/height precise
-            sr.sprite = Sprite.Create(
-                Texture2D.whiteTexture,
-                new Rect(0, 0, Texture2D.whiteTexture.width, Texture2D.whiteTexture.height),
-                new Vector2(0.5f, 0.5f),
-                Texture2D.whiteTexture.width
-            );
-            sr.color = frameColor;
-
-            // Make sure the frame draws BEHIND all the puzzle pieces
-            sr.sortingOrder = -1;
-        }
-
-        frameObject.transform.position = new Vector3(centerPosition.x, centerPosition.y, 0.1f); // slightly behind pieces
-        frameObject.transform.localScale = new Vector3(width, height, 1f);
-
-        // Remember these bounds so drag scripts can clamp pieces to stay inside
-        FrameCenter = centerPosition;
-        FrameWidth = width;
-        FrameHeight = height;
-        FrameIsReady = true;
-    }
-
-    // Scatters every piece to a random SAFE spot, but STRICTLY inside the frame
-    // (never outside it, so the picture never spawns off the target area)
+    // Scatters every piece into a random GRID SLOT (like shuffling seats in a
+    // classroom) - this guarantees pieces NEVER overlap, since every piece
+    // gets its own unique slot, just in the wrong order.
     void ShuffleWithinFrame(PuzzlePiece[] allPieces, Vector3 frameCenter, float frameWidth, float frameHeight)
     {
-        // Guess how big one puzzle piece is, so we don't let its edge poke outside the frame
-        float pieceHalfSize = 0.5f;
-        if (allPieces.Length > 0)
-        {
-            SpriteRenderer sr = allPieces[0].GetComponent<SpriteRenderer>();
-            if (sr != null)
-            {
-                pieceHalfSize = Mathf.Max(sr.bounds.extents.x, sr.bounds.extents.y);
-            }
-        }
-
-        float minX = frameCenter.x - (frameWidth / 2f) + pieceHalfSize;
-        float maxX = frameCenter.x + (frameWidth / 2f) - pieceHalfSize;
-        float minY = frameCenter.y - (frameHeight / 2f) + pieceHalfSize;
-        float maxY = frameCenter.y + (frameHeight / 2f) - pieceHalfSize;
-
-        // Safety check: if the frame is too small for even one piece to fit
-        // with padding, just shuffle around the exact center instead of crashing
-        if (minX > maxX) { minX = maxX = frameCenter.x; }
-        if (minY > maxY) { minY = maxY = frameCenter.y; }
-
+        // Step 1: Collect the list of "slots" - these are simply each piece's
+        // own correct position (already perfectly spaced, no overlap there)
+        List<Vector3> slots = new List<Vector3>();
         foreach (PuzzlePiece piece in allPieces)
         {
-            float randomX = Random.Range(minX, maxX);
-            float randomY = Random.Range(minY, maxY);
-            piece.transform.position = new Vector3(randomX, randomY, 0);
+            slots.Add(piece.correctPosition);
+        }
+
+        // Step 2: Shuffle the ORDER of these slots (like shuffling a deck of cards)
+        for (int i = slots.Count - 1; i > 0; i--)
+        {
+            int randomIndex = Random.Range(0, i + 1);
+            Vector3 temp = slots[i];
+            slots[i] = slots[randomIndex];
+            slots[randomIndex] = temp;
+        }
+
+        // Step 3: Hand out one shuffled slot to each piece
+        // Since every slot was originally a unique, non-overlapping spot,
+        // and each piece gets exactly ONE slot, nothing can overlap!
+        for (int i = 0; i < allPieces.Length; i++)
+        {
+            allPieces[i].transform.position = slots[i];
         }
     }
 }
