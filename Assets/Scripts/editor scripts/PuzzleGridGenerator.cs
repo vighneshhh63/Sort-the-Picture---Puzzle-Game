@@ -165,5 +165,12 @@ public class PuzzleGridGenerator : EditorWindow
         }
 
         Debug.Log("Puzzle grid generated with " + blockIndex + " blocks! Check your Hierarchy.");
+
+        // Automatically add the "fit to any screen" brain so you never
+        // have to manually drag it on again for future puzzles!
+        if (puzzleParent.GetComponent<ResponsivePuzzleFitter>() == null)
+        {
+            puzzleParent.AddComponent<ResponsivePuzzleFitter>();
+        }
     }
 }
